@@ -36,7 +36,7 @@ const MODEL         = process.env.VOICESAY_MODEL || "liquid/lfm-2.5-1.2b-instruc
 const USE_REASONING = MODEL.includes("nemotron");
 const TTS_CMD       = process.env.VOICESAY_TTS || "/Users/oujiajian/.local/bin/saymimo";
 const TTS_VOICE     = process.env.VOICESAY_VOICE || "default_zh";
-const TIMEOUT        = parseInt(process.env.VOICESAY_TIMEOUT || "30000", 10);
+const TIMEOUT       = parseInt(process.env.VOICESAY_TIMEOUT || "30000", 10);
 
 // ─── OpenRouter ──────────────────────────────────────────────────────────
 function ask(prompt, maxTokens = 50) {
@@ -44,7 +44,7 @@ function ask(prompt, maxTokens = 50) {
 
   return new Promise((resolve, reject) => {
     const payload = JSON.stringify({
-      model,
+      model: MODEL,
       messages: [{ role: "user", content: prompt }],
       max_output_tokens: maxTokens,
       temperature: 0.8,
@@ -80,7 +80,6 @@ function ask(prompt, maxTokens = 50) {
           const lines = reasoning.split("\n").reverse();
           for (const line of lines) {
             const t = line.trim();
-            // Skip reasoning process lines, take first real output
             if (t.length >= 4 && /[\u4e00-\u9fa5]/.test(t) &&
               !t.includes("用户") && !t.includes("请求") &&
               !t.includes("考虑") && !t.includes("首先")) {
@@ -104,7 +103,7 @@ function ask(prompt, maxTokens = 50) {
 function speak(text) {
   if (!text || !text.trim()) return;
 
-  const cmd = `source ~/.zshenv 2>/dev/null; ${TTS_CMD} -v ${TTS_VOICE} ${JSON.stringify(text.trim())}`;
+  const cmd = `bash -lc 'source ~/.zshenv 2>/dev/null; ${TTS_CMD} -v ${TTS_VOICE} ${JSON.stringify(text.trim())}'`;
 
   try {
     execSync(cmd, { stdio: "ignore", timeout: 12000 });
@@ -125,34 +124,21 @@ function buildContext(toolName, toolInput, toolOutput) {
   }
 
   switch (toolName) {
-    case "Bash":
-      return `Bash: ${(i.command || "").slice(0, 70)}`;
-    case "Read":
-      return `Reading ${(i.file_path || "").split("/").pop()}`;
-    case "Write":
-      return `Writing ${(i.file_path || "").split("/").pop()}`;
-    case "Edit":
-      return `Editing ${(i.file_path || "").split("/").pop()}`;
-    case "MultiEdit":
-      return `Editing multiple files`;
-    case "Glob":
-      return `Globbing ${i.pattern || ""}`;
-    case "Grep":
-      return `Searching for ${(i.pattern || "").slice(0, 40)}`;
-    case "Agent":
-      return `Spawning parallel agents`;
-    case "Task":
-      return `Starting sub-task`;
-    case "WebFetch":
-      return `Fetching web page`;
-    case "WebSearch":
-      return `Searching the web`;
+    case "Bash":      return `Bash: ${(i.command || "").slice(0, 70)}`;
+    case "Read":      return `Reading ${(i.file_path || "").split("/").pop()}`;
+    case "Write":     return `Writing ${(i.file_path || "").split("/").pop()}`;
+    case "Edit":      return `Editing ${(i.file_path || "").split("/").pop()}`;
+    case "MultiEdit": return `Editing multiple files`;
+    case "Glob":      return `Globbing ${i.pattern || ""}`;
+    case "Grep":      return `Searching for ${(i.pattern || "").slice(0, 40)}`;
+    case "Agent":     return `Spawning parallel agents`;
+    case "Task":      return `Starting sub-task`;
+    case "WebFetch":  return `Fetching web page`;
+    case "WebSearch": return `Searching the web`;
     case "TaskCreate":
     case "TaskUpdate":
-    case "TaskGet":
-      return `Managing tasks`;
-    default:
-      return `${toolName} operation`;
+    case "TaskGet":   return `Managing tasks`;
+    default:          return `${toolName} operation`;
   }
 }
 
