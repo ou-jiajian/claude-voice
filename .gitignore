@@ -1,0 +1,8 @@
+# Environment (contains API keys)
+.env
+
+# Logs
+/tmp/voicesay.log
+
+# OS
+.DS_Store

@@ -1,0 +1,143 @@
+#!/usr/bin/env python3
+"""saymimo — Xiaomi MiMo TTS 命令行工具
+
+用法:
+    saymimo "要说的内容"
+    echo "内容" | saymimo
+    saymimo -f text.txt
+    saymimo -v default_en "Hello world"
+    saymimo --style "东北话" "干啥呢"
+
+环境变量:
+    MIMO_API_KEY    小米 API Key（必填）
+    MIMO_API_BASE   API 地址，默认 https://api.xiaomimimo.com/v1
+"""
+
+import base64
+import argparse
+import json
+import os
+import subprocess
+import sys
+import tempfile
+
+
+def _load_env():
+    """从 ~/.zshenv 加载 MIMO_API_KEY 等环境变量"""
+    zshenv = os.path.join(os.path.expanduser("~"), ".zshenv")
+    if not os.path.exists(zshenv):
+        return
+    for line in open(zshenv).read().splitlines():
+        line = line.strip()
+        if not line.startswith("export "):
+            continue
+        line = line[7:]  # 去掉 "export "
+        if "=" in line:
+            k, v = line.split("=", 1)
+            v = v.strip('"\' ')
+            if k not in os.environ:
+                os.environ[k] = v
+
+_load_env()
+
+def speak(text: str, voice: str, style: str = None) -> None:
+    if not text or not text.strip():
+        return
+
+    api_key = os.environ.get("MIMO_API_KEY", "")
+    api_base = os.environ.get("MIMO_API_BASE", "https://api.xiaomimimo.com/v1")
+
+    if not api_key:
+        print("❌  未设置 MIMO_API_KEY 环境变量", file=sys.stderr)
+        print("    export MIMO_API_KEY=your_key", file=sys.stderr)
+        sys.exit(1)
+
+    # 构建 content，追加风格标签
+    content = text
+    if style:
+        styles = " ".join(style) if isinstance(style, list) else style
+        content = f"<style>{styles}</style>{text}"
+
+    payload = {
+        "model": "mimo-v2-tts",
+        "messages": [
+            {"role": "user", "content": "[忽略此消息，请合成语音]"},
+            {"role": "assistant", "content": content},
+        ],
+        "audio": {"format": "wav", "voice": voice},
+    }
+
+    result = subprocess.run(
+        [
+            "curl", "-s", "-X", "POST",
+            f"{api_base}/chat/completions",
+            "-H", "Content-Type: application/json",
+            "-H", f"api-key: {api_key}",
+            "-d", json.dumps(payload),
+            "--max-time", "30",
+        ],
+        capture_output=True, text=True,
+    )
+
+    if result.returncode != 0:
+        print(f"❌  网络错误: {result.stderr.strip()}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        print(f"❌  响应解析失败: {result.stdout[:200]}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        audio_data = data["choices"][0]["message"]["audio"]["data"]
+        wav_bytes = base64.b64decode(audio_data)
+    except (KeyError, IndexError, json.JSONDecodeError) as e:
+        err_msg = data.get("error", {}).get("message", str(data))
+        print(f"❌  API 错误: {err_msg}", file=sys.stderr)
+        sys.exit(1)
+
+    # 写入临时文件并播放
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+        f.write(wav_bytes)
+        tmp_path = f.name
+
+    try:
+        subprocess.run(["afplay", tmp_path], check=True)
+    except subprocess.CalledProcessError:
+        print(f"⚠️  afplay 播放失败，音频保存在 {tmp_path}", file=sys.stderr)
+    finally:
+        os.unlink(tmp_path)
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(description="saymimo — 小米 MiMo TTS 语音合成")
+    p.add_argument("text", nargs="?", help="要说的文本")
+    p.add_argument("-f", "--file", metavar="FILE", help="从文件读取文本")
+    p.add_argument("-v", "--voice", default="mimo_default",
+                   help="音色 (默认: mimo_default)")
+    p.add_argument("--style", action="append", dest="styles",
+                   help="语音风格，可多次指定，如: --style Happy --style 东北话")
+    args = p.parse_args()
+
+    # 读取文本
+    if args.file:
+        try:
+            with open(args.file, encoding="utf-8") as f:
+                text = f.read()
+        except OSError as e:
+            print(f"❌  读取文件失败: {e}", file=sys.stderr)
+            sys.exit(1)
+    elif args.text:
+        text = args.text
+    elif not sys.stdin.isatty():
+        text = sys.stdin.read()
+    else:
+        p.print_help()
+        sys.exit(1)
+
+    speak(text.strip(), args.voice, args.styles)
+
+
+if __name__ == "__main__":
+    main()
