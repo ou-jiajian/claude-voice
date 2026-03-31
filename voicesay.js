@@ -10,13 +10,32 @@
 
 const { execSync } = require("child_process");
 const https = require("https");
+const fs   = require("fs");
+const os   = require("os");
+const path = require("path");
 
-// ─── Config ──────────────────────────────────────────────────────────
-const OPENROUTER_KEY = process.env.OPENROUTER_KEY  || "";
+// ─── Load env from ~/.zshenv (Claude Code hooks run in clean env) ──────────
+function loadEnv() {
+  const zshenv = path.join(os.homedir(), ".zshenv");
+  if (!fs.existsSync(zshenv)) return;
+  for (const line of fs.readFileSync(zshenv, "utf8").split("\n")) {
+    const t = line.trim();
+    if (!t.startsWith("export ")) continue;
+    const eq = t.indexOf("=");
+    if (eq < 0) continue;
+    const k = t.slice(7, eq).trim();
+    const v = t.slice(eq + 1).trim().replace(/^["']|["']$/g, "");
+    if (k && !process.env[k]) process.env[k] = v;
+  }
+}
+loadEnv();
+
+// ─── Config ─────────────────────────────────────────────────────────
+const OPENROUTER_KEY = process.env.OPENROUTER_KEY || "";
 const MODEL         = process.env.VOICESAY_MODEL || "liquid/lfm-2.5-1.2b-instruct:free";
-const USE_REASONING = MODEL.includes("nemotron"); // nemotron needs reasoning extraction
-const TTS_CMD       = process.env.VOICESAY_TTS   || "saymimo";
-const TTS_VOICE       = process.env.VOICESAY_VOICE || "default_zh";
+const USE_REASONING = MODEL.includes("nemotron");
+const TTS_CMD       = process.env.VOICESAY_TTS || "/Users/oujiajian/.local/bin/saymimo";
+const TTS_VOICE     = process.env.VOICESAY_VOICE || "default_zh";
 const TIMEOUT        = parseInt(process.env.VOICESAY_TIMEOUT || "30000", 10);
 
 // ─── OpenRouter ──────────────────────────────────────────────────────────
@@ -88,8 +107,8 @@ function speak(text) {
   const cmd = `source ~/.zshenv 2>/dev/null; ${TTS_CMD} -v ${TTS_VOICE} ${JSON.stringify(text.trim())}`;
 
   try {
-    execSync(cmd, { stdio: "ignore", timeout: 12000, shell: true });
-  } catch { /* silent */ }
+    execSync(cmd, { stdio: "ignore", timeout: 12000 });
+  } catch (e) { /* silent */ }
 }
 
 // ─── Context builder ───────────────────────────────────────────────────
