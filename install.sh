@@ -1,32 +1,43 @@
 #!/usr/bin/env bash
-# install.sh — Install claude-voice
+# install.sh — Install claude-voice plugin
 #
-# 1. Copy voicesay.js
-cp voicesay.js ~/.claude/scripts/hooks/voicesay.js
-echo "✅ voicesay.js installed"
+# What it does:
+#   1. Installs saymimo TTS wrapper to ~/.local/bin/
+#   2. Confirms env vars in ~/.zshenv
+#   3. Installs the plugin via `claude plugin add`
 
-# 2. Install saymimo (shell version — no Python needed)
-cp saymimo.sh ~/.local/bin/saymimo
-chmod +x ~/.local/bin/saymimo
-echo "✅ saymimo installed"
+set -e
 
-# 3. Add env vars to ~/.zshenv
-read -p "OpenRouter key (or press Enter to skip): " orkey
-read -p "MiMo TTS key (or press Enter to skip): " mimo_key
-if [[ -n "$orkey" ]]; then
-  grep -q "OPENROUTER_KEY" ~/.zshenv 2>/dev/null || echo "export OPENROUTER_KEY=\"$orkey\"" >> ~/.zshenv
-fi
-if [[ -n "$mimo_key" ]]; then
-  grep -q "MIMO_API_KEY" ~/.zshenv 2>/dev/null || echo "export MIMO_API_KEY=\"$mimo_key\"" >> ~/.zshenv
-fi
-echo "✅ env vars added to ~/.zshenv — run: source ~/.zshenv"
+PLUGIN_ROOT="$(cd "$(dirname "$0")" && pwd)"
 
-# 4. Print hook config snippet
+echo "Installing claude-voice..."
+
+# ─── 1. Install saymimo TTS ──────────────────────────────────────────
+SAYMIMO="$HOME/.local/bin/saymimo"
+mkdir -p "$HOME/.local/bin"
+cp "$PLUGIN_ROOT/scripts/saymimo.sh" "$SAYMIMO"
+chmod +x "$SAYMIMO"
+echo "✅ saymimo installed → $SAYMIMO"
+
+# ─── 2. Check env vars ──────────────────────────────────────────────
+check_env() {
+  local key="$1"
+  local label="$2"
+  if grep -q "export $key=" "$HOME/.zshenv" 2>/dev/null; then
+    echo "✅ $label already set"
+  else
+    echo "⚠️  $label not found in ~/.zshenv — add it to use voice"
+  fi
+}
+
+check_env "OPENROUTER_KEY" "OPENROUTER_KEY"
+check_env "MIMO_API_KEY"   "MIMO_API_KEY"
+
+# ─── 3. Install plugin ──────────────────────────────────────────────
 echo ""
-echo "5. Add to ~/.claude/settings.json hooks section:"
-echo '
-  "hooks": {
-    "SessionStart": [{"matcher":"*","hooks":[{"type":"command","command":"node \"'$HOME'/.claude/scripts/hooks/voicesay.js\" \"SessionStart\"","async":true,"timeout":35}]}],
-    "PostToolUse": [{"matcher":"Read|Write|Edit|MultiEdit|Bash|Glob|Grep","hooks":[{"type":"command","command":"node \"'$HOME'/.claude/scripts/hooks/voicesay.js\" \"PostToolUse\"","async":true,"timeout":25}]}],
-    "SessionEnd": [{"matcher":"*","hooks":[{"type":"command","command":"node \"'$HOME'/.claude/scripts/hooks/voicesay.js\" \"SessionEnd\"","async":true,"timeout":35}]}]
-  }'
+echo "Now installing the plugin..."
+echo "Run this command:"
+echo ""
+echo "  claude plugin add \"$PLUGIN_ROOT\""
+echo ""
+echo "Then restart Claude Code to activate voice hooks."

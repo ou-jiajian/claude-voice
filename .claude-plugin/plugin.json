@@ -1,0 +1,21 @@
+{
+  "name": "claude-voice",
+  "version": "1.0.0",
+  "description": "AI-powered voice announcements for Claude Code — every action narrated in natural Chinese. Toggle on/off with /voice",
+  "author": {
+    "name": "欧同学",
+    "url": "https://github.com/ou-jiajian"
+  },
+  "homepage": "https://github.com/ou-jiajian/claude-voice",
+  "repository": "https://github.com/ou-jiajian/claude-voice",
+  "license": "MIT",
+  "keywords": [
+    "claude-code",
+    "voice",
+    "tts",
+    "audio",
+    "hooks",
+    "openrouter",
+    "xiaomi"
+  ]
+}
